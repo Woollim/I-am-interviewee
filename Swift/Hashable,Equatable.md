@@ -1,48 +1,74 @@
 # Hashable이 무엇이고, Equatable을 왜 상속해야 하는지 설명하시오.
 
-## 참고
-* [Apple Developer - Hashable](https://developer.apple.com/documentation/swift/hashable/)
+### 참고
 
-## Answer
+[Apple Developer - Hashable](https://developer.apple.com/documentation/swift/hashable/)
 
-#### 사전 지식
+## Anser
 
-> hash란, 해시 함수에 의해 얻어지는 값으로 해시값(hashValue), 해시코드, 해시 체크섬으로도 불립니다.
+### Q1. Hashable이란?
 
-> hash function, 임의의 길이의 데이터를 고정된 길이의 데이터로 매핑하는 함수입니다.
+공식문서 내용을 그대로 가지고 오면, 정수형 hashValue를 생성하기 위해 Hasher로 해싱될 수 있는 유형을 말한다.
 
-> HashTable에서 hash값을 찾기 위해선 key가 필요하고 이 key는 unique 해야 합니다.
-
-
-#### Hashable
-
-```swift
-protocol Hashable
-```
-
-공식문서에 따르면, Hashable이란 **정수형의 해시값을 제공하는 "Hasher"로 해싱될 수 있는 타입**을 의미합니다.
-
-* 우리는 set이나 dictionary의 key값으로 Hashable 프로토콜을 준수하는 타입을 사용할 수 있습니다. 대다수의 standard library 내의 타입들은 Hashable을 준수하고 있죠.(String, Integers, Float, Boolean 등)
-* 그 외 다른 타입들에는 Optional, Array, range 등이 있는데 이들의 type argument들이 동일하게 구현될 때 자동으로 Hashable이 됩니다. Bool?, [String] 등이 있을 수 있겠죠?  
-* 또한, associated 값이 없는 enum(열거형)을 정의한다면, enum은 자동으로 Hashable을 준수하게됩니다. 
-* 커스텀 타입의 경우에도 Hashable한 타입이 될 수 있는데, hash(into: )메서드를 구현한다면 Hashable 준수가 가능해집니다.
-* (저장 property들이 모두 Hashable한 구조체, 모두 Hashable한 enum 타입을 가진 enum 이라면 컴파일러가 hash(into:) 메서드를 자동으로 제공합니다.)
-
-값을 해싱한다는 것은 필수 구성 요소(essential component)를 해시 함수(Hasher 타입으로 표시되는)에 제공하는 것을 의미합니다.  
-필수 구성 요소는 타입의 Equatable 구현에 기여하는 구성 요소입니다. 동일한 두 인스턴스는 같은 순서로 hash(into:)에서 같은 값을 Hasher에 공급해야 합니다.
-
-여기서 Equatable에 대한 언급이 나오네요. Hashable은 Equatable 프로토콜을 상속 받고 있습니다. 
+이게 무슨 말일까? 윗 글을 온전히 이해하기 위해 아래 추가 질문에 하나씩 답을 해보자.
 
 
-#### Equatable을 왜 상속해야 할까?
+#### Q1-1. hashing이란?
 
-```swift
-protocol Equatable {
-    static func == (lhs: Self, rhs: Self) -> Bool
-}
-```
+입력값을 특정한 수학적 알고리즘을 통해 고정된 크기의 값(hashValue)으로 변환하는 동작을 말한다.
 
-해싱을 하게 되면 해시값이라는 **일정한 자릿수의 고유값**을 만들어냅니다. 이 값이 고유값이라는 것을 보장하기 위해서 Hashable은 `값이 동일한 지 비교 할 수 있는 타입`인 Equatable을 준수합니다.  Equatable을 준수하는 타입은 == 혹은 != 사용하여 동등성을 비교할 수 있습니다.
+해시 함수의 주요한 특징은 단방향 함수라는 것인데, 입력값을 hashValue로 변환할 수는 있지만 반대로 hashValue를 다시 입력값으로 원상복귀시킬 수 없다.
 
-Set, Dictionary의 key값 또한 중복을 허용하면 안되는 특성이 있습니다. 그래서 그 타입 안에서 유일성이 보장되는 Hashable을 준수하는 타입만 받도록 되어있는 것입니다. Set, Dictionary의 key값의 유일성 보장 노하우(?)는 Hasing기법이라고 할 수 있겠네요.
+이러한 특징 덕분에 보안에서 값을 유추할 수 없도록 만들어야 할 때 hashing을 사용한다. ex) 비밀번호를 저장해야 할 때 hasing을 사용한다. 이러면 DB가 털린다고 해도 해커는 비밀번호를 알아낼 수 없다.
+
+hasing이라는 개념이 입력값을 수학적 알고리즘을 통해 hashValue로 바꾸는 행위를 말하며 이를 구현한 hasing 알고리즘은 다양하다. (hashMap, SHA256 등)
+
+#### Q1-2. swift가 hasing을 하는 방법은? (Hasher는 어떤 방식으로 hashValue를 만드는가?)
+
+그렇다면 과연 swift는 어떤 hasing 알고리즘을 사용할까?
+
+[swift 공식 레포](https://github.com/swiftlang/swift/blob/1c8f885a6d57cb9027e0a52070caf68586abc857/stdlib/public/core/SipHash.swift)와 [포럼](https://forums.swift.org/t/how-is-synthesized-hashable-implemented/15960?utm_source=chatgpt.com)에 명시되어 있는 것 처럼 `SipHash`를 사용하고 있다.
+
+이 알고리즘을 사용하는 swift Hasher의 특징은 아래와 같다.
+
+1. 같은 입력값에 같은 hashValue가 나오는 consistent hashing 방식이라는 점
+2. 내부적으로 hasing을 위해 사용하는 seed값 2개를 프로세스마다 무작위로 잡는다는 것
+3. 동일한 값을 hasing하더라도 값을 넣는 순서에 따라 hashValue가 다를 수 있다는 점
+4. 서로 다른 입력값을 hasing 하더라도 같은 hashValue가 나올 수 있다는 점
+
+#### Q1-3. `hash(into: Hasher)` 를 직접 구현할 때 유의사항은?
+
+1. 프로세스에 따라 서로 다른 seed값을 잡기 때문에 hashValue가 계속 변할 수 있다는 점
+   - 다른 앱의 hashValue와 비교 불가능
+   - 앱을 껐다켜도 hashValue가 변하기에 저장도 불가능
+2. 서로 다른 타입이더라도 hashing을 하는 입력값이 동일하면 같은 hashValue가 나올 수 있다는 점
+3. 입력값이 동일하더라도 hashing을 하는 순서가 다르다면 다른 hashValue가 나올 수 있다는 점
+
+
+
+### Q2. 그렇다면, Hashable은 왜 Equatable을 상속해야할까?
+
+swift는 Hashable을 언제 사용할까? 값을 해시(hashValue) 기반으로 빠르게 찾거나 중복을 막아야 할 때 사용한다.
+
+Set, Dictionary, DiffableDataSource 등 Hashable을 사용하면 요소들을 순서대로 돌면서 `equal` 체크하는 것보다 해시에 지정된 값을 바로 꺼낼 수 있기 때문이다. 즉 시간복잡도를 O(n)을 O(1)로 만든다.
+
+하지만 해시(hashValue) 기반으로 빠르게 찾아야 하는데, Hasher의 특징에 하나 걸리는 것이 있다.
+
+> 그리고 이 Hasher의 특징으로 서로 다른 입력값을 hasing했다고 하더라도 같은 hashValue가 나올 수 있다는 점이 있다.
+
+
+즉 hashValue만으로는 값의 동등성을 완전히 식별하지 못한다는 것이다. 이를 [해시충돌](https://ko.wikipedia.org/wiki/%ED%95%B4%EC%8B%9C_%EC%B6%A9%EB%8F%8C) 이라고 부르며, swift는 해시충돌 상황에서 값의 동등성을 완전히 식별하기 위해 equal 함수를 추가로 사용하고 있다.
+
+
+**한마디로 정리하면**
+
+swift의 hash함수(SipHash)으로 인해 해시충돌이 발생할 수 있고, 이 상황에서도 값의 동등성을 식별하기 위해 Equatable을 필수로 구현해야한다.
+
+
+
+PS. [DiffableDataSource의 문서](https://developer.apple.com/documentation/uikit/updating-collection-views-using-diffable-data-sources)에도 같은 내용을 서술하고 있다.
+
+> Two identifiers that are equal must always have the same hash value. However, the converse isn’t true; two values with the same hash value aren’t required to be equal. This situation is called a *hash collision*. To increase efficiency, try to ensure that unequal identifiers have different hash values. The occasional hash collision is okay when it’s unavoidable, but keep the number of collisions to a minimum. Otherwise, the performance of lookups in the data collection may suffer.
+
+
 
